@@ -1,7 +1,10 @@
 package ircbot
 
-import play.api.libs.json._
-import play.api.libs.functional.syntax._
+
+import io.circe._
+// NOTE don't remove the following line!
+import io.circe.generic.auto._
+import io.circe.generic.semiauto._
 
 import scala.language.implicitConversions
 
@@ -9,6 +12,51 @@ import scala.language.implicitConversions
 sealed trait Message {
     def encode: String
 }
+
+private case class UnrecognizedMessage(raw: String) extends Message {
+    override def encode: String = throw new Exception("Non-protocol message")
+}
+
+case class Ping(servers: String*) extends Message {
+    override def encode: String = s"PING :${servers.mkString(",")}"
+}
+
+case class Pong(servers: String*) extends Message {
+    override def encode: String = s"PONG :${servers.mkString(",")}"
+}
+
+case class Nick(nick: String) extends Message {
+    override def encode: String = s"NICK :$nick"
+}
+
+case class User(user: String, real: Option[String] = None) extends Message {
+    override def encode: String = s"USER $user 0 * :${real.getOrElse(user)}"
+}
+
+case class Join(channels: String*) extends Message {
+    override def encode: String = s"JOIN ${channels.mkString(",")}"
+}
+
+case class Part(channels: Seq[String], reason: Option[String] = None) extends Message {
+    override def encode: String = "PART " + channels.mkString(",") + (reason match {
+        case Some(r) => " :" + r
+        case _       => ""
+    })
+}
+
+case class PrivMsg(receivers: Seq[String], text: String) extends Message {
+    override def encode: String = s"PRIVMSG ${receivers.mkString(",")} :$text"
+}
+
+case class ServerMessage(nick: String, name: Option[String], host: Option[String], msg: Message) extends Message {
+    override def encode: String = {
+        var out = ":%s".format(nick)
+        name foreach { n => out = "%s!%s".format(out, n) }
+        host foreach { h => out = "%s@%s".format(out, h) }
+        "%s %s".format(out, msg.encode)
+    }
+}
+
 
 object Message {
 
@@ -47,7 +95,6 @@ object Message {
                 case i  => body.substring(0, i).split(" ").toList :+ body.substring(i+1)
             }
 
-            // println(s"Trying '$cmdName' . $bodyArgs . $cmdStr")
             decoders get cmdName flatMap { _.lift(bodyArgs) } getOrElse UnrecognizedMessage(cmdStr)
         }
 
@@ -62,65 +109,8 @@ object Message {
         }
     }
 
-    implicit val serverMessageWrites = new Writes[ServerMessage] {
-        override def writes(o: ServerMessage): JsValue = Json.obj(
-            "nick" -> o.nick,
-            "name" -> o.name,
-            "host" -> o.host,
-            "msg" -> (o.msg match {
-                case m: PrivMsg => Json.toJson(m)
-                case _ => Json.toJson("")
-            })
-        )
-    }
+    // Could they be mandatory because they ServerMessage contains a reference to a trait (Message)?
+    implicit val smDecoder: Decoder[ServerMessage] = deriveDecoder
+    implicit val smEncoder: Encoder[ServerMessage] = deriveEncoder
 
-    implicit val privMsgWrites: Writes[PrivMsg] = (
-        (JsPath \ "targets").write[Seq[String]] and
-        (JsPath \ "text").write[String]
-    )(unlift(PrivMsg.unapply))
-
-}
-
-private case class UnrecognizedMessage(raw: String) extends Message {
-    override def encode: String = throw new Exception("Non-protocol message")
-}
-
-case class ServerMessage(nick: String, name: Option[String], host: Option[String], msg: Message) extends Message {
-    override def encode: String = {
-        var out = ":%s".format(nick)
-        name foreach { n => out = "%s!%s".format(out, n) }
-        host foreach { h => out = "%s@%s".format(out, h) }
-        "%s %s".format(out, msg.encode)
-    }
-}
-
-case class Ping(servers: String*) extends Message {
-    override def encode: String = s"PING :${servers.mkString(",")}"
-}
-
-case class Pong(servers: String*) extends Message {
-    override def encode: String = s"PONG :${servers.mkString(",")}"
-}
-
-case class Nick(nick: String) extends Message {
-    override def encode: String = s"NICK :$nick"
-}
-
-case class User(user: String, real: Option[String] = None) extends Message {
-    override def encode: String = s"USER $user 0 * :${real.getOrElse(user)}"
-}
-
-case class Join(channels: String*) extends Message {
-    override def encode: String = s"JOIN ${channels.mkString(",")}"
-}
-
-case class Part(channels: Seq[String], reason: Option[String] = None) extends Message {
-    override def encode: String = "PART " + channels.mkString(",") + (reason match {
-        case Some(r) => s" :$r"
-        case _       => ""
-    })
-}
-
-case class PrivMsg(receivers: Seq[String], text: String) extends Message {
-    override def encode: String = s"PRIVMSG ${receivers.mkString(",")} :$text"
 }
