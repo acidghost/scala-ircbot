@@ -92,7 +92,8 @@ object Message {
             val cmdName = cmd.toUpperCase
             val bodyArgs = body.indexOf(":") match {
                 case -1 => body.split(" ").toList
-                case i  => body.substring(0, i).split(" ").toList :+ body.substring(i+1)
+                case  0 => body.tail :: Nil
+                case  i => body.substring(0, i).split(" ").toList :+ body.substring(i+1)
             }
 
             decoders get cmdName flatMap { _.lift(bodyArgs) } getOrElse UnrecognizedMessage(cmdStr)
