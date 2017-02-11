@@ -6,13 +6,8 @@ scalaVersion := "2.11.8"
 
 val Versions = new Object {
     val circe = "0.7.0"
-    val scalaz = "7.2.8"
     val slf4j = "1.7.22"
 }
-
-val scalaz = Seq(
-    "core", "concurrent"
-).map(x => "org.scalaz" %% s"scalaz-$x" % Versions.scalaz)
 
 val circe = Seq(
     "core", "generic", "parser"
@@ -24,8 +19,7 @@ val logging = Seq(
     "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0"
 )
 
-libraryDependencies ++= scalaz ++
-                        circe ++
+libraryDependencies ++= circe ++
                         logging ++
                         Seq(
                             "com.typesafe" % "config" % "1.3.1"

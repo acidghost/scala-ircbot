@@ -5,7 +5,6 @@ import com.typesafe.scalalogging.StrictLogging
 import io.circe.syntax._
 
 import scala.collection.JavaConverters._
-import scalaz.concurrent.Actor
 
 
 case class Bot(host: String, port: Int, nick: String, channels: Seq[String], logsPath: String) extends StrictLogging {
@@ -17,23 +16,17 @@ case class Bot(host: String, port: Int, nick: String, channels: Seq[String], log
     loop(EventsLogger(logsPath))
 
 
-    private def loop(evtLogger: EventsLogger): Unit = {
-        val msg = client.read(): Message
-        actor ! msg
-        loop (msg match {
-            case sm: ServerMessage if sm.msg.isInstanceOf[Join]
-                                   |  sm.msg.isInstanceOf[Part]
-                                   |  sm.msg.isInstanceOf[Part]
-                                   |  sm.msg.isInstanceOf[PrivMsg]
-                                   |  sm.msg.isInstanceOf[Nick]     => evtLogger(sm.asJson.noSpaces)
-            case _                                                  => evtLogger
-        })
-    }
+    private def loop(evtLogger: EventsLogger): Unit =
+        loop (client.read() map { line =>
+            val msg = line: Message
+            unitActor(msg)
+            loggerActor(evtLogger)(msg)
+        } getOrElse evtLogger)
 
 
-    lazy private val actor = Actor[Message] {
-        case Ping(servers) =>
-            client.write(Pong(servers))
+    private def unitActor: PartialFunction[Message, Unit] = {
+        case Ping(servers)                         => client.write(Pong(servers))
+        case ServerMessage(_, _, _, Ping(servers)) => client.write(Pong(servers))
 
         case ServerMessage(msgNick, _, _, Join(msgChannels @ _*)) =>
             logger.info(s"$msgNick joined ${msgChannels.mkString(", ")}")
@@ -59,6 +52,15 @@ case class Bot(host: String, port: Int, nick: String, channels: Seq[String], log
             logger.info(s"$msgNick is now known as $newNick")
 
         case _ => ()
+    }
+
+    private def loggerActor(evtLogger: EventsLogger): PartialFunction[Message, EventsLogger] = {
+        case sm: ServerMessage if sm.msg.isInstanceOf[Join]
+                               |  sm.msg.isInstanceOf[Part]
+                               |  sm.msg.isInstanceOf[Part]
+                               |  sm.msg.isInstanceOf[PrivMsg]
+                               |  sm.msg.isInstanceOf[Nick]     => evtLogger(sm.asJson.noSpaces)
+        case _                                                  => evtLogger
     }
 
 }
