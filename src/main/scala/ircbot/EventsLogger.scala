@@ -13,8 +13,7 @@ case class EventsLogger(basePath: String) {
     private val writer = new PrintWriter(file)
 
     def apply(event: String): EventsLogger = {
-        val now = Calendar.getInstance()
-        val logger = if (now.get(Calendar.DAY_OF_MONTH) != startedAt.get(Calendar.DAY_OF_MONTH)) {
+        val logger = if (timeToChangeFile) {
                         writer.close()
                         EventsLogger(basePath)
                     } else this
@@ -24,6 +23,9 @@ case class EventsLogger(basePath: String) {
     }
 
     def close(): Unit = writer.close()
+
+    private def timeToChangeFile =
+        Calendar.getInstance().get(Calendar.DAY_OF_MONTH) != startedAt.get(Calendar.DAY_OF_MONTH)
 
 }
 
