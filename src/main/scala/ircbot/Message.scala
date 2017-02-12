@@ -48,6 +48,18 @@ case class PrivMsg(receivers: Seq[String], text: String) extends Message {
     override def encode: String = s"PRIVMSG ${receivers.mkString(",")} :$text"
 }
 
+case class Quit(reason: Option[String] = None) extends Message {
+    override def encode: String = s"QUIT :${reason.getOrElse("")}"
+}
+
+case class NamesReply(channelModifier: Char, channel: String, nicks: Seq[String]) extends Message {
+    override def encode: String = s"353 $channelModifier $channel :${nicks.mkString(" ")}"
+}
+
+case class NamesEndReply(channel: String) extends Message {
+    override def encode: String = s"366 $channel :End of NAMES list"
+}
+
 case class ServerMessage(nick: String, name: Option[String], host: Option[String], msg: Message) extends Message {
     override def encode: String = {
         var out = ":%s".format(nick)
@@ -81,6 +93,20 @@ object Message {
         },
         "PRIVMSG" -> {
             case targets :: text :: Nil => PrivMsg(targets.split(",").toList, text)
+        },
+        "QUIT" -> {
+            case reason :: Nil => Quit(Some(reason))
+            case Nil => Quit()
+        },
+        "353" -> {
+            case _ :: channelModifier :: channel :: users :: Nil =>
+                NamesReply(channelModifier.head, channel, users.split(" ").map(_.toCharArray.toList).map {
+                    case x :: xs if x == '@' => xs.mkString("")
+                    case carr => carr.mkString("")
+                })
+        },
+        "366" -> {
+            case _ :: channel :: _ :: Nil => NamesEndReply(channel)
         }
     )
 
