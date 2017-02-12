@@ -18,6 +18,9 @@ object Utils {
     private val formatter = new SimpleDateFormat("yyyy-MM-dd")
     def formatDate(date: Date): String = formatter.format(date)
 
+    private val humanFormatter = new SimpleDateFormat("hh:mm:ss")
+    def formatDateHuman(date: Date): String = humanFormatter.format(date)
+
     def logFilename(basePath: String, date: Date, receiver: String): String =
         s"$basePath/${formatDate(date)}-$receiver.log"
 

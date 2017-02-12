@@ -1,11 +1,15 @@
 package ircbot
 
+import java.util.Calendar
+
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.StrictLogging
 import io.circe.syntax._
+import ircbot.Utils._
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
+import scala.util.Try
 
 
 case class Bot(host: String, port: Int, nick: String, channels: Seq[String], logsPath: String) extends StrictLogging {
@@ -76,12 +80,31 @@ case class Bot(host: String, port: Int, nick: String, channels: Seq[String], log
         case ServerMessage(msgNick, _, _, PrivMsg(targets, text)) =>
             logger.info(s"$msgNick in ${targets.mkString(", ")}: $text")
             if (targets.contains(nick)) {
-                val cmd :: _ = text.split(" ").toList
-                val reply = cmd match {
+                val cmd :: cmdBody = text.split(" ").toList
+                (cmd match {
                     case "help" => "This is still a test..."
-                    case _      => "Unrecognized command: " + cmd
+                    case "logs" => cmdBody match {
+                        case channel :: Nil =>
+                            val logs = LogParser(channel, Calendar.getInstance(), logsPath) map {
+                                case (date, sm) => "[" + formatDateHuman(date) + "] " + sm.humanLog
+                            } mkString "\n"
+                            if (logs == "") "No logs available..."
+                            else logs
+                        case channel :: daysPast :: Nil =>
+                            val cal = Calendar.getInstance()
+                            cal add (Calendar.DATE, Try(-daysPast.toInt) getOrElse 0)
+                            val logs = LogParser(channel, cal, logsPath) map {
+                                case (date, sm) => "[" + formatDateHuman(date) + "] " + sm.humanLog
+                            } mkString "\n"
+                            if (logs == "") "No logs available..."
+                            else logs
+                        case params => "Wrong command parameters: " + (params mkString " ")
+                    }
+                    case _ => "Unrecognized command: " + cmd
+                }) split "\n" foreach { r =>
+                    client.write(PrivMsg(Seq(msgNick), r))
+                    Thread.sleep(500)
                 }
-                client.write(PrivMsg(Seq(msgNick), reply))
             }
 
         case ServerMessage(msgNick, _, _, Nick(newNick)) =>

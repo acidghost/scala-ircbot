@@ -67,6 +67,15 @@ case class ServerMessage(nick: String, name: Option[String], host: Option[String
         host foreach { h => out = "%s@%s".format(out, h) }
         "%s %s".format(out, msg.encode)
     }
+
+    lazy val humanLog: String = msg match {
+        case Nick(newNick) => s"$nick is now known as $newNick"
+        case Join(channels @ _*) => s"$nick joined ${channels.mkString(", ")}"
+        case Part(channels, reason) => s"$nick left ${channels.mkString(", ")} [${reason getOrElse ""}]"
+        case PrivMsg(receivers, text) => s"{${receivers.mkString(",")}} $nick: $text"
+        case Quit(reason) => s"$nick has quit [${reason getOrElse ""}]"
+        case _ => msg.toString
+    }
 }
 
 
