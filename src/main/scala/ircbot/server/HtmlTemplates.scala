@@ -20,9 +20,9 @@ private[server] object HtmlTemplates {
             body()(content)
         ).toString
 
-    def logs(channel: String, date: Date, logsReply: LogsReply): String =
-        page(s"Logs for $channel on $date", Seq(
-            h1(s"Logs for $channel on $date"),
+    def logs(channel: String, logsReply: LogsReply): String =
+        page(s"Logs for $channel on ${logsReply.day}", Seq(
+            h1(s"Logs for $channel on ${logsReply.day}"),
             ul(for (LogLine(d, sm) <- logsReply.data) yield {
                 li(s"[${formatDateHuman(d)}] ${sm.humanLog}")
             })

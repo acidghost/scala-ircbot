@@ -24,12 +24,12 @@ object Server {
     }
 
     case class LogLine(date: Date, message: ServerMessage)
-    case class LogsReply(data: List[LogLine])
+    case class LogsReply(data: Seq[LogLine], day: Date)
 
     private val config = ConfigFactory.load("bot.conf").getConfig("ircbot")
     private val logsPath = config.getString("logsPath")
 
-    private def getLogs(channel: String, days: Option[Int]): Option[(Date, LogsReply)] = {
+    private def getLogs(channel: String, days: Option[Int]): Option[LogsReply] = {
         val date = days match {
             case Some(d) =>
                 val c = Calendar.getInstance()
@@ -40,7 +40,7 @@ object Server {
 
         LogParser(channel, date, logsPath) match {
             case logs if logs.isEmpty  => None
-            case logs                  => Some((date, LogsReply(logs.map { case (d, m) => LogLine(d, m) }.toList)))
+            case logs                  => Some(LogsReply(logs.map { case (d, m) => LogLine(d, m) }.toSeq, date))
         }
     }
 
@@ -54,16 +54,16 @@ object Server {
     private val logsHtmlEndpoint: Endpoint[Response] =
         get("logs" :: "html" :: string("channel") :: paramOption("days").as[Int]) { (channel: String, days: Option[Int]) =>
             getLogs('#' + channel, days) match {
-                case Some((date, logs)) => Ok(htmlResponse(html.logs('#' + channel, date, logs)))
-                case None               => NotFound(new Exception("No logs available..."))
+                case Some(logs) => Ok(htmlResponse(html.logs('#' + channel, logs)))
+                case None       => NotFound(new Exception("No logs available..."))
             }
         }
 
     private val logsJsonEndpoint: Endpoint[LogsReply] =
         get("logs" :: "json" :: string("channel") :: paramOption("days").as[Int]) { (channel: String, days: Option[Int]) =>
             getLogs('#' + channel, days) match {
-                case Some((_, logs)) => Ok(logs)
-                case None            => NotFound(new Exception("No logs available..."))
+                case Some(logs) => Ok(logs)
+                case None       => NotFound(new Exception("No logs available..."))
             }
         }
 
